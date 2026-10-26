@@ -16,8 +16,6 @@ export function whatsappUrl(message?: string) {
 export const WHATSAPP_URL = whatsappUrl();
 export const TEL_URL = `tel:+${PHONE_E164}`;
 
-/** Placeholder hero video — scrub-optimized encode first, original fallback */
-export const HERO_VIDEO_CANDIDATES = ["/gym_ai_scrub.mp4", "/gym_ai_2.mp4"] as const;
-
-export const HERO_VIDEO_FALLBACK =
-  "https://assets.mixkit.co/videos/preview/mixkit-athlete-working-out-in-a-gym-42280-large.mp4";
+/** Lean scrub-optimized hero clip (~3MB) + still for instant first paint */
+export const HERO_VIDEO_SRC = "/gym_ai_scrub.mp4";
+export const HERO_POSTER = "/hero-poster.jpg";

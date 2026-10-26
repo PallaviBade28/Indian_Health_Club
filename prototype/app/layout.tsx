@@ -35,6 +35,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${manrope.variable} ${anton.variable} scroll-smooth`}>
+      <head>
+        <link rel="preload" as="image" href="/hero-poster.jpg" fetchPriority="high" />
+      </head>
       <body className="font-sans antialiased text-white">{children}</body>
     </html>
   );
