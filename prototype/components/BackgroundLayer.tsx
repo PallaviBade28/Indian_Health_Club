@@ -31,14 +31,8 @@ export default function BackgroundLayer() {
   const [loadVideo, setLoadVideo] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
 
-  // Only desktop loads / scrubs the video — mobile keeps the sharp poster
+  // Load video on all devices after first paint (poster shows instantly)
   useEffect(() => {
-    if (!isDesktop) {
-      setLoadVideo(false);
-      setVideoReady(false);
-      return;
-    }
-
     let cancelled = false;
     let idleId = 0;
     let timeoutId = 0;
@@ -51,7 +45,7 @@ export default function BackgroundLayer() {
     if (typeof ric === "function") {
       idleId = ric(start, { timeout: 900 });
     } else {
-      timeoutId = window.setTimeout(start, 180);
+      timeoutId = window.setTimeout(start, 120);
     }
 
     return () => {
@@ -61,20 +55,43 @@ export default function BackgroundLayer() {
       }
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [isDesktop]);
+  }, []);
 
+  // Desktop: scroll-scrub. Mobile: muted looping playback (no scrub).
   useScrollScrubVideo(videoRef, isDesktop && loadVideo && videoReady);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !loadVideo || !videoReady) return;
+
+    if (isDesktop) {
+      video.loop = false;
+      video.pause();
+      return;
+    }
+
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        /* Autoplay blocked — poster stays visible */
+      });
+    }
+  }, [isDesktop, loadVideo, videoReady]);
 
   const handleMetadata = () => {
     const video = videoRef.current;
-    if (video) {
+    if (!video) return;
+    if (isDesktop) {
       video.pause();
       video.currentTime = 0;
     }
   };
 
   const markReady = () => setVideoReady(true);
-  const showVideo = isDesktop && videoReady;
+  const showVideo = videoReady;
 
   return (
     <div
@@ -85,7 +102,6 @@ export default function BackgroundLayer() {
         <AtmosphericOrbs mobile={!isDesktop} />
       </div>
 
-      {/* Mobile: permanent sharp still. Desktop: still until scrub video is ready. */}
       <img
         src={HERO_POSTER}
         alt=""
@@ -98,33 +114,38 @@ export default function BackgroundLayer() {
         }`}
       />
 
-      {isDesktop && loadVideo && (
+      {loadVideo && (
         <video
           ref={videoRef}
           src={HERO_VIDEO_SRC}
           poster={HERO_POSTER}
-          className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700 will-change-[opacity] ${
+          className={`absolute inset-0 h-full w-full object-cover object-[center_28%] transition-opacity duration-700 will-change-[opacity] md:object-center ${
             showVideo ? "opacity-85" : "opacity-0"
           }`}
           muted
           playsInline
+          autoPlay={!isDesktop}
+          loop={!isDesktop}
           preload="auto"
           disablePictureInPicture
           disableRemotePlayback
           suppressHydrationWarning
           onLoadedMetadata={handleMetadata}
           onLoadedData={markReady}
-          onCanPlay={markReady}
+          onCanPlay={(e) => {
+            markReady();
+            if (!isDesktop) {
+              e.currentTarget.play().catch(() => {});
+            }
+          }}
+          onPlaying={markReady}
           onError={() => setVideoReady(false)}
         />
       )}
 
-      {/* Stronger veil on mobile so text stays readable over cropped portrait still */}
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          showVideo
-            ? "bg-black/30"
-            : "bg-black/50 md:bg-black/40"
+          showVideo ? "bg-black/40 md:bg-black/30" : "bg-black/50 md:bg-black/40"
         }`}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-gym-black/45 via-transparent to-gym-black/90 md:from-gym-black/20 md:to-gym-black/85" />
