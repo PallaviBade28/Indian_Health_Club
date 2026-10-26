@@ -24,6 +24,11 @@ export function useScrollScrubVideo(
     const video = videoRef.current;
     if (!video) return;
 
+    // Skip scrub on touch / coarse pointers (phones) even if hook is armed
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const narrow = window.matchMedia("(max-width: 767px)").matches;
+    if (coarse && narrow) return;
+
     let raf = 0;
     let running = true;
 
