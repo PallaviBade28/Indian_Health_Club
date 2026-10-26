@@ -31,7 +31,7 @@ export default function BackgroundLayer() {
   const [loadVideo, setLoadVideo] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
 
-  // Load video on all devices after first paint (poster shows instantly)
+  // Same video file everywhere — load after first paint (desktop + Android)
   useEffect(() => {
     let cancelled = false;
     let idleId = 0;
@@ -45,7 +45,7 @@ export default function BackgroundLayer() {
     if (typeof ric === "function") {
       idleId = ric(start, { timeout: 900 });
     } else {
-      timeoutId = window.setTimeout(start, 120);
+      timeoutId = window.setTimeout(start, 160);
     }
 
     return () => {
@@ -57,41 +57,69 @@ export default function BackgroundLayer() {
     };
   }, []);
 
-  // Desktop: scroll-scrub. Mobile: muted looping playback (no scrub).
+  // Reset ready state when switching desktop/mobile layout
+  useEffect(() => {
+    setVideoReady(false);
+  }, [isDesktop]);
+
+  // Desktop only: scroll-scrub. Android: normal loop playback (no seeking).
   useScrollScrubVideo(videoRef, isDesktop && loadVideo && videoReady);
 
+  // Mobile/Android: keep muted loop playing (same video file — not re-encoded)
   useEffect(() => {
+    if (isDesktop || !loadVideo) return;
     const video = videoRef.current;
-    if (!video || !loadVideo || !videoReady) return;
-
-    if (isDesktop) {
-      video.loop = false;
-      video.pause();
-      return;
-    }
+    if (!video) return;
 
     video.loop = true;
     video.muted = true;
+    video.defaultMuted = true;
     video.playsInline = true;
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        /* Autoplay blocked — poster stays visible */
-      });
-    }
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+
+    const tryPlay = () => {
+      const p = video.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {
+          /* Autoplay may be blocked until a tap — poster stays visible */
+        });
+      }
+    };
+
+    if (videoReady) tryPlay();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") tryPlay();
+    };
+    const onTouch = () => tryPlay();
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("touchstart", onTouch, { once: true, passive: true });
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("touchstart", onTouch);
+    };
   }, [isDesktop, loadVideo, videoReady]);
 
   const handleMetadata = () => {
     const video = videoRef.current;
     if (!video) return;
+
     if (isDesktop) {
       video.pause();
       video.currentTime = 0;
+      return;
     }
+
+    // Android / mobile — play through, don't scrub
+    video.loop = true;
+    void video.play().catch(() => {});
   };
 
   const markReady = () => setVideoReady(true);
-  const showVideo = videoReady;
+  const showVideo = loadVideo && videoReady;
 
   return (
     <div
@@ -124,20 +152,15 @@ export default function BackgroundLayer() {
           }`}
           muted
           playsInline
-          autoPlay={!isDesktop}
           loop={!isDesktop}
+          autoPlay={!isDesktop}
           preload="auto"
           disablePictureInPicture
           disableRemotePlayback
           suppressHydrationWarning
           onLoadedMetadata={handleMetadata}
           onLoadedData={markReady}
-          onCanPlay={(e) => {
-            markReady();
-            if (!isDesktop) {
-              e.currentTarget.play().catch(() => {});
-            }
-          }}
+          onCanPlay={markReady}
           onPlaying={markReady}
           onError={() => setVideoReady(false)}
         />
@@ -145,7 +168,7 @@ export default function BackgroundLayer() {
 
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          showVideo ? "bg-black/40 md:bg-black/30" : "bg-black/50 md:bg-black/40"
+          showVideo ? "bg-black/35 md:bg-black/30" : "bg-black/50 md:bg-black/40"
         }`}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-gym-black/45 via-transparent to-gym-black/90 md:from-gym-black/20 md:to-gym-black/85" />
